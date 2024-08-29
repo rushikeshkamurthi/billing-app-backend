@@ -33,6 +33,7 @@ exports.signup = (req, res) => {
     username: req.body.username,
     email: req.body.email,
     password: bcrypt.hashSync(req.body.password, 8),
+    accountId: req.body.accountId,
   })
     .then((user) => {
       console.log("User created:", user);

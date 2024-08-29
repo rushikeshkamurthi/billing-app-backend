@@ -3,11 +3,18 @@ const User = db.user;
 const Role = db.role;
 
 const Op = db.Sequelize.Op;
+var bcrypt = require("bcryptjs");
 
 // Create and Save a new User
 exports.createUser = (req, res) => {
+  console.log("red.body", req.body);
   // Validate request
-  if (!req.body.username || !req.body.email || !req.body.password) {
+  if (
+    !req.body.username ||
+    !req.body.email ||
+    !req.body.password ||
+    !req.body.accountId
+  ) {
     res.status(400).send({
       message: "Content can not be empty!",
     });
@@ -18,7 +25,8 @@ exports.createUser = (req, res) => {
   const user = {
     username: req.body.username,
     email: req.body.email,
-    password: req.body.password,
+    password: bcrypt.hashSync(req.body.password, 8),
+    accountId: req.body.accountId,
   };
 
   // Save User in the database

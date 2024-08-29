@@ -19,20 +19,26 @@ db.sequelize = sequelize;
 
 db.user = require("../models/user.model.js")(sequelize, Sequelize);
 db.role = require("../models/role.model.js")(sequelize, Sequelize);
+db.account = require("../models/account.model.js")(sequelize, Sequelize);
+db.shop = require("../models/shop.model.js")(sequelize, Sequelize);
+db.product = require("../models/product.model.js")(sequelize, Sequelize);
 db.refreshToken = require("./refreshToken.model.js")(sequelize, Sequelize);
 
-db.role.belongsToMany(db.user, {
-  through: "user_roles",
-});
-db.user.belongsToMany(db.role, {
-  through: "user_roles",
-});
+// Associations
+db.account.hasMany(db.user, { as: "users" });
+db.user.belongsTo(db.account, { foreignKey: "accountId", as: "account" });
 
 db.refreshToken.belongsTo(db.user, {
   foreignKey: "userId",
   targetKey: "id",
 });
+db.account.hasMany(db.shop, { as: "shops" });
+db.shop.belongsTo(db.account, { foreignKey: "accountId", as: "account" });
 
-db.ROLES = ["user", "admin", "moderator"];
+db.shop.hasMany(db.product, { as: "products" });
+db.product.belongsTo(db.shop, { foreignKey: "shopId", as: "shop" });
+
+db.user.belongsToMany(db.role, { through: "user_roles" });
+db.role.belongsToMany(db.user, { through: "user_roles" });
 
 module.exports = db;
