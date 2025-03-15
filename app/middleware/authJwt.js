@@ -25,7 +25,7 @@ isAdmin = (req, res, next) => {
     .then((user) => {
       user.getRoles().then((roles) => {
         for (let i = 0; i < roles.length; i++) {
-          if (roles[i].name === "admin") {
+          if (roles[i].name === "admin" || roles[i].name === "internal_admin") {
             next();
             return;
           }
@@ -129,7 +129,7 @@ checkAccountOwnership = (req, res, next) => {
         });
       }
 
-      if (user.accountId != resourceAccountId) {
+      if (user.accountId != resourceAccountId && this.isAdmin) {
         console.log("Account ID mismatch detected. Access denied.");
         console.log(
           `User's Account ID: ${user.accountId}, Resource's Account ID: ${resourceAccountId}`
