@@ -6,39 +6,49 @@ const Op = db.Sequelize.Op;
 var bcrypt = require("bcryptjs");
 
 // Create and Save a new User
-exports.createUser = (req, res) => {
-  console.log("red.body", req.body);
-  // Validate request
-  if (
-    !req.body.username ||
-    !req.body.email ||
-    !req.body.password ||
-    !req.body.accountId
-  ) {
-    res.status(400).send({
-      message: "Content can not be empty!",
-    });
-    return;
-  }
+exports.createUser = async (req, res) => {
+  try {
+    console.log("req.body", req.body);
 
-  // Create a User
-  const user = {
-    username: req.body.username,
-    email: req.body.email,
-    password: bcrypt.hashSync(req.body.password, 8),
-    accountId: req.body.accountId,
-  };
-
-  // Save User in the database
-  User.create(user)
-    .then((data) => {
-      res.send(data);
-    })
-    .catch((err) => {
-      res.status(500).send({
-        message: err.message || "Some error occurred while creating the User.",
+    // Validate request
+    if (
+      !req.body.username ||
+      !req.body.email ||
+      !req.body.password ||
+      !req.body.accountId ||
+      !req.body.roleIds
+    ) {
+      return res.status(400).send({
+        message:
+          "Username, Email, Password, AccountId, and Role IDs are required!",
       });
+    }
+
+    // Create a User
+    const user = await User.create({
+      username: req.body.username,
+      email: req.body.email,
+      password: bcrypt.hashSync(req.body.password, 8),
+      accountId: req.body.accountId,
     });
+
+    if (req.body.roleIds && req.body.roleIds.length > 0) {
+      // Find all roles by the provided IDs
+      const roles = await Role.findAll({
+        where: { id: req.body.roleIds },
+      });
+
+      // Associate the user with roles
+      await user.setRoles(roles);
+    }
+
+    res.status(201).send({ message: "User created successfully!", user });
+  } catch (err) {
+    console.error("Error creating user:", err);
+    res.status(500).send({
+      message: err.message || "Some error occurred while creating the User.",
+    });
+  }
 };
 
 // Retrieve all Users from the database.

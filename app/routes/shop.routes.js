@@ -154,9 +154,9 @@ module.exports = function (app) {
 
   /**
    * @swagger
-   * /api/shops/{id}:
-   *   delete:
-   *     summary: Delete a shop by ID
+   * /api/shops/{id}/soft-delete:
+   *   patch:
+   *     summary: Soft delete a shop by ID
    *     tags: [Shops]
    *     security:
    *       - bearerAuth: []
@@ -169,13 +169,95 @@ module.exports = function (app) {
    *         description: The shop ID
    *     responses:
    *       200:
-   *         description: Shop deleted successfully
+   *         description: Shop soft deleted successfully
    *       404:
    *         description: Shop not found
    */
-  app.delete(
-    "/api/shops/:id",
+  app.patch(
+    "/api/shops/:id/soft-delete",
     [authJwt.verifyToken, authJwt.isExternalAdmin, authJwt.checkShopOwnership],
-    controller.deleteShop
+    controller.softDeleteShop
+  );
+
+  /**
+   * @swagger
+   * /api/shops:
+   *   get:
+   *     summary: Retrieve all shops
+   *     tags: [Shops]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: accountId
+   *         schema:
+   *           type: integer
+   *         description: Filter by account ID
+   *       - in: query
+   *         name: page
+   *         schema:
+   *           type: integer
+   *         description: Page number for pagination
+   *       - in: query
+   *         name: limit
+   *         schema:
+   *           type: integer
+   *         description: Number of records per page
+   *     responses:
+   *       200:
+   *         description: A list of shops
+   */
+  app.get("/api/shops", [authJwt.verifyToken], controller.getAllShops);
+
+  /**
+   * @swagger
+   * /api/accounts/{accountId}/shops:
+   *   get:
+   *     summary: Retrieve all shops under a specific account
+   *     tags: [Shops]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: accountId
+   *         schema:
+   *           type: integer
+   *         required: true
+   *         description: The account ID
+   *     responses:
+   *       200:
+   *         description: A list of shops under the account
+   */
+  app.get(
+    "/api/accounts/:accountId/shops",
+    [authJwt.verifyToken, authJwt.checkAccountOwnership],
+    controller.getShopsByAccount
+  );
+
+  /**
+   * @swagger
+   * /api/shops/{id}/restore:
+   *   patch:
+   *     summary: Restore a soft deleted shop by ID
+   *     tags: [Shops]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         schema:
+   *           type: integer
+   *         required: true
+   *         description: The shop ID
+   *     responses:
+   *       200:
+   *         description: Shop restored successfully
+   *       404:
+   *         description: Shop not found
+   */
+  app.patch(
+    "/api/shops/:id/restore",
+    [authJwt.verifyToken, authJwt.isExternalAdmin, authJwt.checkShopOwnership],
+    controller.restoreShop
   );
 };

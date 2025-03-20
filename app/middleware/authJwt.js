@@ -26,6 +26,7 @@ isAdmin = (req, res, next) => {
       user.getRoles().then((roles) => {
         for (let i = 0; i < roles.length; i++) {
           if (roles[i].name === "admin" || roles[i].name === "internal_admin") {
+            req.isAdmin = true; // Mark the user as an admin
             next();
             return;
           }
@@ -43,7 +44,11 @@ isExternalAdmin = (req, res, next) => {
     .then((user) => {
       user.getRoles().then((roles) => {
         for (let i = 0; i < roles.length; i++) {
-          if (roles[i].name === "external_admin") {
+          if (
+            roles[i].name === "external_admin" ||
+            roles[i].name === "admin" ||
+            roles[i].name === "internal_admin"
+          ) {
             next();
             return;
           }
@@ -92,55 +97,35 @@ isExternalUser = (req, res, next) => {
     });
 };
 
-// Hierarchy Checks
-// checkAccountOwnership = (req, res, next) => {
-//   const resourceAccountId = req.body.accountId || req.params.id;
-
-//   User.findByPk(req.userId)
-//     .then((user) => {
-//       if (user.accountId !== resourceAccountId) {
-//         return res.status(403).send({
-//           message: "Access Denied: Not within your account hierarchy!",
-//         });
-//       }
-//       next();
-//     })
-//     .catch((err) => {
-//       res.status(500).send({ message: err.message });
-//     });
-// };
-
+// Allow Admins to bypass ownership checks
 checkAccountOwnership = (req, res, next) => {
   console.log("Entering checkAccountOwnership middleware");
 
-  // Use req.params.id to get the account ID from the URL
-  const resourceAccountId = req.body.accountId || req.params.id;
-  console.log(`Resource Account ID from request: ${resourceAccountId}`);
-
   User.findByPk(req.userId)
     .then((user) => {
-      console.log(`User fetched: ${user ? user.id : "User not found"}`);
-      console.log(`User Account ID: ${user ? user.accountId : "N/A"}`);
-
       if (!user) {
-        console.log("User not found, sending 404 response");
-        return res.status(404).send({
-          message: "User not found",
-        });
+        return res.status(404).send({ message: "User not found" });
       }
 
-      if (user.accountId != resourceAccountId && this.isAdmin) {
-        console.log("Account ID mismatch detected. Access denied.");
-        console.log(
-          `User's Account ID: ${user.accountId}, Resource's Account ID: ${resourceAccountId}`
+      return user.getRoles().then((roles) => {
+        const isAdmin = roles.some(
+          (role) => role.name === "admin" || role.name === "internal_admin"
         );
-        return res.status(403).send({
-          message: "Access Denied: Not within your account hierarchy!",
-        });
-      }
 
-      console.log("Account ID match confirmed. Proceeding to next middleware.");
-      next();
+        if (isAdmin) {
+          console.log("Admin detected, bypassing account ownership check.");
+          return next();
+        }
+
+        const resourceAccountId = req.body.accountId || req.params.id;
+        if (user.accountId != resourceAccountId) {
+          return res.status(403).send({
+            message: "Access Denied: Not within your account hierarchy!",
+          });
+        }
+
+        next();
+      });
     })
     .catch((err) => {
       console.error("Error fetching user:", err.message);
@@ -148,38 +133,56 @@ checkAccountOwnership = (req, res, next) => {
     });
 };
 
+// Allow Admins to bypass shop ownership checks
 checkShopOwnership = (req, res, next) => {
+  console.log("Entering checkShopOwnership middleware", req.body);
+
   const resourceShopId = req.body.shopId || req.params.shopId;
 
-  // First, find the shop by its ID
-  Shop.findByPk(resourceShopId)
-    .then((shop) => {
-      if (!shop) {
-        return res.status(404).send({ message: "Shop Not Found" });
+  if (!resourceShopId) {
+    return res.status(400).send({ message: "Shop ID is required" });
+  }
+
+  // Find the user by their ID
+  User.findByPk(req.userId, { include: ["roles"] })
+    .then((user) => {
+      if (!user) {
+        return res.status(404).send({ message: "User Not Found" });
       }
 
-      // If shop exists, find the user by their ID
-      User.findByPk(req.userId)
-        .then((user) => {
-          if (!user) {
-            return res.status(404).send({ message: "User Not Found" });
+      // Check if user is admin and bypass ownership check
+      const isAdmin = user.roles.some(
+        (role) => role.name === "admin" || role.name === "internal_admin"
+      );
+
+      if (isAdmin) {
+        console.log("Admin detected, bypassing shop ownership check.");
+        return next();
+      }
+
+      // Fetch the shop and check if it belongs to the user's account
+      Shop.findByPk(resourceShopId)
+        .then((shop) => {
+          if (!shop) {
+            return res.status(404).send({ message: "Shop Not Found" });
           }
 
-          // Check if the user's accountId matches the shop's accountId
+          // Ensure the shop's accountId matches the user's accountId
           if (shop.accountId !== user.accountId) {
             return res.status(403).send({
               message: "Access Denied: Not within your account hierarchy!",
             });
           }
 
-          // If everything is fine, proceed to the next middleware or route handler
           next();
         })
         .catch((err) => {
+          console.error("Error fetching shop:", err.message);
           res.status(500).send({ message: err.message });
         });
     })
     .catch((err) => {
+      console.error("Error fetching user:", err.message);
       res.status(500).send({ message: err.message });
     });
 };
@@ -193,4 +196,5 @@ const authJwt = {
   checkAccountOwnership,
   checkShopOwnership,
 };
+
 module.exports = authJwt;

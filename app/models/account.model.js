@@ -6,5 +6,15 @@ module.exports = (sequelize, Sequelize) => {
     },
   });
 
+  Account.associate = function (models) {
+    Account.hasMany(models.shop, {
+      foreignKey: "accountId",
+      as: "shops",
+      scope: {
+        isDeleted: false, // Exclude soft-deleted shops by default
+      },
+    });
+  };
+
   return Account;
 };

@@ -15,7 +15,17 @@ exports.createAccount = (req, res) => {
 };
 
 exports.getAllAccounts = (req, res) => {
-  Account.findAll({ include: ["users", "shops"] })
+  Account.findAll({
+    include: [
+      {
+        model: db.shop,
+        as: "shops",
+        where: { isDeleted: false }, // Exclude soft-deleted shops
+        required: false, // Ensures accounts without shops are still returned
+      },
+      "users",
+    ],
+  })
     .then((accounts) => {
       res.status(200).send(accounts);
     })
@@ -27,7 +37,16 @@ exports.getAllAccounts = (req, res) => {
 exports.getAccount = (req, res) => {
   const accountId = req.params.id;
 
-  Account.findByPk(accountId, { include: ["users", "shops"] })
+  Account.findByPk(accountId, {
+    include: [
+      {
+        model: db.shop,
+        as: "shops",
+        where: { isDeleted: false },
+        required: false,
+      },
+    ],
+  })
     .then((account) => {
       if (!account) {
         return res.status(404).send({ message: "Account Not Found" });
