@@ -135,9 +135,10 @@ checkAccountOwnership = (req, res, next) => {
 
 // Allow Admins to bypass shop ownership checks
 checkShopOwnership = (req, res, next) => {
-  console.log("Entering checkShopOwnership middleware", req.body);
+  console.log("Entering checkShopOwnership middleware", req);
 
-  const resourceShopId = req.body.shopId || req.params.shopId;
+  const resourceShopId = req.body.shopId || req.params.id;
+  console.log("resourceShopId", resourceShopId);
 
   if (!resourceShopId) {
     return res.status(400).send({ message: "Shop ID is required" });
@@ -187,10 +188,39 @@ checkShopOwnership = (req, res, next) => {
     });
 };
 
+// ✅ New isAdminOrExternalAdmin middleware
+isAdminOrExternalAdmin = (req, res, next) => {
+  User.findByPk(req.userId)
+    .then((user) => {
+      if (!user) {
+        return res.status(404).send({ message: "User not found" });
+      }
+
+      user.getRoles().then((roles) => {
+        const hasPermission = roles.some((role) =>
+          ["admin", "internal_admin", "external_admin"].includes(role.name)
+        );
+
+        if (hasPermission) {
+          next();
+          return;
+        }
+
+        res
+          .status(403)
+          .send({ message: "Require Admin or External Admin Role!" });
+      });
+    })
+    .catch((err) => {
+      res.status(500).send({ message: err.message });
+    });
+};
+
 const authJwt = {
   verifyToken,
   isAdmin,
   isExternalAdmin,
+  isAdminOrExternalAdmin,
   isExternalSubAdmin,
   isExternalUser,
   checkAccountOwnership,

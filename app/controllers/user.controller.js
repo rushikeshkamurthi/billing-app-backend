@@ -1,30 +1,52 @@
 const db = require("../models");
 const User = db.user;
 const Role = db.role;
-
 const Op = db.Sequelize.Op;
 var bcrypt = require("bcryptjs");
+
+// Helper function to fetch user roles
+const getUserRoles = async (userId) => {
+  const user = await User.findByPk(userId, {
+    include: [
+      {
+        model: Role,
+        as: "roles",
+        attributes: ["name"],
+        through: { attributes: [] },
+      },
+    ],
+  });
+
+  return user ? user.roles.map((role) => role.name) : [];
+};
 
 // Create and Save a new User
 exports.createUser = async (req, res) => {
   try {
     console.log("req.body", req.body);
 
-    // Validate request
-    if (
-      !req.body.username ||
-      !req.body.email ||
-      !req.body.password ||
-      !req.body.accountId ||
-      !req.body.roleIds
-    ) {
-      return res.status(400).send({
-        message:
-          "Username, Email, Password, AccountId, and Role IDs are required!",
-      });
+    // Get the authenticated user's details along with roles
+    const requestingUser = await User.findByPk(req.userId);
+    if (!requestingUser) {
+      return res.status(403).send({ message: "Unauthorized user." });
     }
 
-    // Create a User
+    const userRoles = await getUserRoles(req.userId);
+    const isAdmin = userRoles.includes("external_admin");
+
+    if (!isAdmin) {
+      return res
+        .status(403)
+        .send({ message: "Forbidden: Admin access required." });
+    }
+
+    // Ensure the user is creating accounts only under their own account
+    if (requestingUser.accountId !== req.body.accountId) {
+      return res
+        .status(403)
+        .send({ message: "Cannot create users outside your account." });
+    }
+
     const user = await User.create({
       username: req.body.username,
       email: req.body.email,
@@ -33,123 +55,127 @@ exports.createUser = async (req, res) => {
     });
 
     if (req.body.roleIds && req.body.roleIds.length > 0) {
-      // Find all roles by the provided IDs
-      const roles = await Role.findAll({
-        where: { id: req.body.roleIds },
-      });
-
-      // Associate the user with roles
+      const roles = await Role.findAll({ where: { id: req.body.roleIds } });
       await user.setRoles(roles);
     }
 
     res.status(201).send({ message: "User created successfully!", user });
   } catch (err) {
     console.error("Error creating user:", err);
-    res.status(500).send({
-      message: err.message || "Some error occurred while creating the User.",
-    });
+    res
+      .status(500)
+      .send({ message: "Some error occurred while creating the User." });
   }
 };
 
 // Retrieve all Users from the database.
-exports.findAllUsers = (req, res) => {
-  const username = req.query.username;
-  let condition = username
-    ? { username: { [Op.like]: `%${username}%` } }
-    : null;
+exports.findAllUsers = async (req, res) => {
+  try {
+    const requestingUser = await User.findByPk(req.userId);
+    if (!requestingUser) {
+      return res.status(403).send({ message: "Unauthorized user." });
+    }
 
-  User.findAll({
-    where: condition,
-    include: [
-      {
-        model: Role,
-        as: "roles",
-        attributes: ["id", "name"],
-        through: {
-          attributes: [],
+    const users = await User.findAll({
+      where: { accountId: requestingUser.accountId },
+      include: [
+        {
+          model: Role,
+          as: "roles",
+          attributes: ["id", "name"],
+          through: { attributes: [] },
         },
-      },
-    ],
-  })
-    .then((data) => {
-      res.send(data);
-    })
-    .catch((err) => {
-      res.status(500).send({
-        message: err.message || "Some error occurred while retrieving users.",
-      });
+      ],
     });
+
+    res.send(users);
+  } catch (err) {
+    res.status(500).send({ message: "Error retrieving users." });
+  }
 };
 
 // Find a single User with an id
-exports.findOneUser = (req, res) => {
+exports.findOneUser = async (req, res) => {
   const id = req.params.id;
 
-  User.findByPk(id)
-    .then((data) => {
-      if (data) {
-        res.send(data);
-      } else {
-        res.status(404).send({
-          message: `Cannot find User with id=${id}.`,
-        });
-      }
-    })
-    .catch((err) => {
-      res.status(500).send({
-        message: "Error retrieving User with id=" + id,
-      });
-    });
+  try {
+    const requestingUser = await User.findByPk(req.userId);
+    const targetUser = await User.findByPk(id);
+
+    if (!requestingUser || !targetUser) {
+      return res.status(404).send({ message: "User not found." });
+    }
+
+    if (requestingUser.accountId !== targetUser.accountId) {
+      return res
+        .status(403)
+        .send({ message: "Forbidden: You do not have access to this user." });
+    }
+
+    res.send(targetUser);
+  } catch (err) {
+    res.status(500).send({ message: "Error retrieving User." });
+  }
 };
 
 // Update a User by the id in the request
-exports.updateUser = (req, res) => {
+exports.updateUser = async (req, res) => {
   const id = req.params.id;
 
-  User.update(req.body, {
-    where: { id: id },
-  })
-    .then((num) => {
-      if (num == 1) {
-        res.send({
-          message: "User was updated successfully.",
-        });
-      } else {
-        res.send({
-          message: `Cannot update User with id=${id}. Maybe User was not found or req.body is empty!`,
-        });
-      }
-    })
-    .catch((err) => {
-      res.status(500).send({
-        message: "Error updating User with id=" + id,
-      });
-    });
+  try {
+    const requestingUser = await User.findByPk(req.userId);
+    const targetUser = await User.findByPk(id);
+
+    if (!requestingUser || !targetUser) {
+      return res.status(404).send({ message: "User not found." });
+    }
+
+    const userRoles = await getUserRoles(req.userId);
+    const isAdmin = userRoles.includes("external_admin");
+
+    if (!isAdmin || requestingUser.accountId !== targetUser.accountId) {
+      return res
+        .status(403)
+        .send({ message: "Forbidden: Admin access required." });
+    }
+
+    await User.update(req.body, { where: { id } });
+
+    res.send({ message: "User was updated successfully." });
+  } catch (err) {
+    console.error("Error updating user:", err);
+    res.status(500).send({ message: "Error updating User." });
+  }
 };
 
 // Delete a User with the specified id in the request
-exports.deleteUser = (req, res) => {
+exports.deleteUser = async (req, res) => {
   const id = req.params.id;
 
-  User.destroy({
-    where: { id: id },
-  })
-    .then((num) => {
-      if (num == 1) {
-        res.send({
-          message: "User was deleted successfully!",
-        });
-      } else {
-        res.send({
-          message: `Cannot delete User with id=${id}. Maybe User was not found!`,
-        });
-      }
-    })
-    .catch((err) => {
-      res.status(500).send({
-        message: "Could not delete User with id=" + id,
-      });
-    });
+  try {
+    const requestingUser = await User.findByPk(req.userId);
+    const targetUser = await User.findByPk(id);
+
+    if (!requestingUser || !targetUser) {
+      return res.status(404).send({ message: "User not found." });
+    }
+
+    const userRoles = await getUserRoles(req.userId);
+    const isAdmin = userRoles.includes("external_admin");
+
+    if (!isAdmin || requestingUser.accountId !== targetUser.accountId) {
+      return res
+        .status(403)
+        .send({ message: "Forbidden: Admin access required." });
+    }
+
+    await User.destroy({ where: { id } });
+
+    res.send({ message: "User was deleted successfully!" });
+  } catch (err) {
+    console.error("Error deleting user:", err);
+    res.status(500).send({ message: "Could not delete User." });
+  }
 };
 
 // Delete all Users from the database.

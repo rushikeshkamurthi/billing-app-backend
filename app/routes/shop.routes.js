@@ -175,7 +175,11 @@ module.exports = function (app) {
    */
   app.patch(
     "/api/shops/:id/soft-delete",
-    [authJwt.verifyToken, authJwt.isExternalAdmin, authJwt.checkShopOwnership],
+    [
+      authJwt.verifyToken,
+      authJwt.isAdminOrExternalAdmin,
+      authJwt.checkShopOwnership,
+    ],
     controller.softDeleteShop
   );
 

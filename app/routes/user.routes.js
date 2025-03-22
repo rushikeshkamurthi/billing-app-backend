@@ -152,7 +152,7 @@ module.exports = function (app) {
    */
   app.post(
     "/api/users",
-    [authJwt.verifyToken, authJwt.isAdmin],
+    [authJwt.verifyToken, authJwt.isAdminOrExternalAdmin],
     authController.signup
   );
 
@@ -176,7 +176,7 @@ module.exports = function (app) {
    */
   app.get(
     "/api/users",
-    [authJwt.verifyToken, authJwt.isAdmin],
+    [authJwt.verifyToken, isAdminOrExternalAdmin],
     controller.findAllUsers
   );
 
@@ -205,7 +205,7 @@ module.exports = function (app) {
    */
   app.get(
     "/api/users/:id",
-    [authJwt.verifyToken, authJwt.isAdmin],
+    [authJwt.verifyToken, authJwt.isAdminOrExternalAdmin],
     controller.findOneUser
   );
 
@@ -236,7 +236,7 @@ module.exports = function (app) {
    */
   app.put(
     "/api/users/:id",
-    [authJwt.verifyToken, authJwt.isAdmin],
+    [authJwt.verifyToken, authJwt.isAdminOrExternalAdmin],
     controller.updateUser
   );
 
@@ -261,7 +261,7 @@ module.exports = function (app) {
    */
   app.delete(
     "/api/users/:id",
-    [authJwt.verifyToken, authJwt.isAdmin],
+    [authJwt.verifyToken, authJwt.isAdminOrExternalAdmin],
     controller.deleteUser
   );
 
@@ -279,7 +279,7 @@ module.exports = function (app) {
    */
   app.delete(
     "/api/users",
-    [authJwt.verifyToken, authJwt.isAdmin],
+    [authJwt.verifyToken, authJwt.isAdminOrExternalAdmin],
     controller.deleteAllUsers
   );
 };
