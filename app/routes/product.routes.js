@@ -51,6 +51,7 @@ const controller = require("../controllers/product.controller");
  *           description: The ID of the shop the product belongs to
  *           example: 1
  */
+
 module.exports = function (app) {
   /**
    * @swagger
@@ -74,9 +75,33 @@ module.exports = function (app) {
    */
   app.post(
     "/api/products",
-    [authJwt.verifyToken, authJwt.isExternalAdmin, authJwt.checkShopOwnership],
+    [
+      authJwt.verifyToken,
+      authJwt.isAdminOrExternalAdmin,
+      authJwt.checkShopOwnership,
+    ],
     controller.createProduct
   );
+
+  /**
+   * @swagger
+   * /api/products:
+   *   get:
+   *     summary: Get all products
+   *     tags: [Products]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: List of all products
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 $ref: '#/components/schemas/Product'
+   */
+  app.get("/api/products", [authJwt.verifyToken], controller.getAllProducts);
 
   /**
    * @swagger
@@ -90,7 +115,7 @@ module.exports = function (app) {
    *       - in: path
    *         name: id
    *         schema:
-   *           type: string
+   *           type: integer
    *         required: true
    *         description: The product ID
    *     responses:
@@ -103,10 +128,68 @@ module.exports = function (app) {
    *       404:
    *         description: Product not found
    */
+  app.get("/api/products/:id", [authJwt.verifyToken], controller.getProduct);
+
+  /**
+   * @swagger
+   * /api/shops/{shopId}/products:
+   *   get:
+   *     summary: Get all products for a specific shop
+   *     tags: [Products]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: shopId
+   *         schema:
+   *           type: integer
+   *         required: true
+   *         description: The shop ID
+   *     responses:
+   *       200:
+   *         description: List of products for the shop
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 $ref: '#/components/schemas/Product'
+   */
   app.get(
-    "/api/products/:id",
-    [authJwt.verifyToken, authJwt.checkShopOwnership],
-    controller.getProduct
+    "/api/shops/:shopId/products",
+    [authJwt.verifyToken],
+    controller.getProductsByShop
+  );
+
+  /**
+   * @swagger
+   * /api/accounts/{accountId}/products:
+   *   get:
+   *     summary: Get all products for a specific account
+   *     tags: [Products]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: accountId
+   *         schema:
+   *           type: integer
+   *         required: true
+   *         description: The account ID
+   *     responses:
+   *       200:
+   *         description: List of products for the account
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 $ref: '#/components/schemas/Product'
+   */
+  app.get(
+    "/api/accounts/:accountId/products",
+    [authJwt.verifyToken, authJwt.isExternalAdmin],
+    controller.getProductsByAccount
   );
 
   /**
@@ -121,7 +204,7 @@ module.exports = function (app) {
    *       - in: path
    *         name: id
    *         schema:
-   *           type: string
+   *           type: integer
    *         required: true
    *         description: The product ID
    *     requestBody:
@@ -156,7 +239,7 @@ module.exports = function (app) {
    *       - in: path
    *         name: id
    *         schema:
-   *           type: string
+   *           type: integer
    *         required: true
    *         description: The product ID
    *     responses:
@@ -167,7 +250,7 @@ module.exports = function (app) {
    */
   app.delete(
     "/api/products/:id",
-    [authJwt.verifyToken, authJwt.isExternalAdmin, authJwt.checkShopOwnership],
+    [authJwt.verifyToken, authJwt.isExternalAdmin],
     controller.deleteProduct
   );
 };
